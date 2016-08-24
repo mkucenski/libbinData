@@ -21,7 +21,8 @@ binDataFile::binDataFile() {
 }
 
 binDataFile::binDataFile(string filename) {
-	open(filename);
+	int rv = open(filename);
+	DEBUG_INFO("binDataFile::binDataFile() open(" << filename << ") returned: " << rv);
 }
 
 binDataFile::~binDataFile() {
@@ -49,7 +50,7 @@ int binDataFile::open(string filename) {
 	int rv = -1;
 	
 	if (m_filestream.is_open() == false) {
-		m_filestream.open(filename.c_str(), fstream::in);
+		m_filestream.open(filename.c_str(), ifstream::binary);
 		if (!m_filestream.fail()) {
 			rv = 0;
 		} else {
@@ -75,7 +76,7 @@ bool binDataFile::isOpen() {
 int binDataFile::seek(u_int32_t ulOffset) {
 	int rv = -1;
 	
-	//DEBUG_INFO("binDataFile::seek() Moving to offset " << ulOffset);
+	DEBUG_INFO("binDataFile::seek() Moving to offset " << ulOffset);
 	m_filestream.seekg(ulOffset, ios_base::beg);
 	if (!m_filestream.eof() && !m_filestream.fail()) {
 		rv = 0;
@@ -95,11 +96,14 @@ int binDataFile::getData(void* pData, u_int32_t ulSize, u_int32_t* p_ulSizeRead)
 	
 	if (ulSize > 0) {
 		if (pData) {
-			//DEBUG_INFO("binDataFile::getData() Reading " << ulSize << " bytes from offset " << offset());
-			u_int32_t ulSizeRead = m_filestream.readsome((char*)pData, ulSize);
+			u_int32_t pos = offset();
+			DEBUG_INFO("binDataFile::getData() Reading " << ulSize << " bytes from offset " << pos);
+
+			m_filestream.read((char*)pData, ulSize);
+			u_int32_t ulSizeRead = m_filestream.gcount();
 			if (!m_filestream.eof() && !m_filestream.fail()) {
 				if (ulSizeRead != ulSize) {
-					DEBUG_WARNING("binDataFile::getData() Only read " << ulSizeRead << " out of " << ulSize << " requested from offset " << offset() - ulSizeRead);
+					DEBUG_WARNING("binDataFile::getData() Only read " << ulSizeRead << " out of " << ulSize << " requested from offset " << pos << " (error state = " << m_filestream.rdstate() << ")");
 				}
 				if (p_ulSizeRead) {
 					*p_ulSizeRead = ulSizeRead;
@@ -109,7 +113,7 @@ int binDataFile::getData(void* pData, u_int32_t ulSize, u_int32_t* p_ulSizeRead)
 				DEBUG_ERROR("binDataFile::getData() Unable to read data from offset " << offset());
 			}
 		} else {
-			//DEBUG_INFO("binDataFile::getDat() No destination pointer given, moving ahead " << ulSize << " bytes");
+			DEBUG_INFO("binDataFile::getDat() No destination pointer given, moving ahead " << ulSize << " bytes");
 			m_filestream.seekg(ulSize, ios_base::cur);
 			if (!m_filestream.eof() && !m_filestream.fail()) {
 				rv = 0;

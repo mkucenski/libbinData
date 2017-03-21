@@ -49,8 +49,8 @@ class binDataFile : public binData {
 		int getString(string* pString, u_int32_t ulLength);																			//Read ulLength characters into pString
 		int getString(string* pString, u_int32_t ulOffset, u_int32_t ulLength);													//Read ulLength characters from offset ulOffset into pString
 
-		int getTwoByteCharString(string_t* pString, u_int32_t ulLength, bool bBigEndian);
-		int getTwoByteCharString(string_t* pString, u_int32_t ulOffset, u_int32_t ulLength, bool bBigEndian);
+		int getTwoByteCharString(string_t* pString, u_int32_t ulLength, bool bBigEndian=false);
+		int getTwoByteCharString(string_t* pString, u_int32_t ulOffset, u_int32_t ulLength, bool bBigEndian=false);
 				
 	private:
 		ifstream m_filestream;

@@ -144,6 +144,59 @@ int binDataFile::getData(void* pData, u_int32_t ulSize, u_int32_t ulOffset, u_in
 	return rv;
 }
 
+int binDataFile::findNonNull(u_int32_t* p_ulNonNullPos) {
+	int rv = -1;
+
+	int bufferSize = 4096;
+	char buffer[bufferSize];
+	u_int32_t pos = 0;
+	u_int32_t sizeRead = 0;
+	bool bFound = false;
+
+	while (!bFound) {
+		if (getData(&buffer, bufferSize, &sizeRead) >= 0) {
+			pos += sizeRead;
+			DEBUG_INFO("binDataFile::findNonNull() Parsing read buffer to find start of non-null data.");
+			for (int i=0; i<bufferSize; i++) {
+				if (buffer[i] != 0) {
+					bFound = true; 
+					pos += i;
+					DEBUG_INFO("binDataFile::findNonNull() Found non-null data at position <" << pos << ">.");
+					break;
+				}
+			}
+		} else {
+			DEBUG_ERROR("binDataFile::findNonNull() Failed reading buffer data.");
+		}
+	}
+
+	if (bFound) {
+		DEBUG_INFO("binDataFile::findNonNull() Found valid data, returning position <" << pos << "> and seeking file pointer to same location.");
+		if (seek(pos) >= 0) {
+			*p_ulNonNullPos = pos;
+			rv = 0;
+		} else {
+			DEBUG_ERROR("binDataFile::findNonNull() Failure seeking internal pointer to start of valid data.");
+		}
+	} else {
+		DEBUG_ERROR("binDataFile::findNonNull() Unable to find start of valid data.");
+	}
+
+	return rv;
+}
+
+int binDataFile::findNonNull(u_int32_t ulOffset, u_int32_t* p_ulNonNullPos) {
+	int rv = -1;
+
+	if (seek(ulOffset) >= 0) {
+		rv = findNonNull(p_ulNonNullPos);
+	} else {
+		DEBUG_ERROR("binDataFile::findNonNull(offset) Unable to position file pointer to offset: " << ulOffset);
+	}
+
+	return rv;
+}
+
 /*int binDataFile::getData(vector<char>* pData, u_int32_t ulSize, u_int32_t* p_ulReadSize) {
 	int rv = -1;
 	
@@ -241,7 +294,7 @@ int binDataFile::getString(string* pString, u_int32_t ulOffset, u_int32_t ulLeng
 	return rv;
 }
 
-int binDataFile::getTwoByteCharString(string_t* pString, u_int32_t ulLength, bool bBigEndian) {
+int binDataFile::getTwoByteCharString(string* pString, u_int32_t ulLength, bool bBigEndian) {
 	int rv = -1;
 	
 	if (pString) {
@@ -253,7 +306,7 @@ int binDataFile::getTwoByteCharString(string_t* pString, u_int32_t ulLength, boo
 		while (ulLength == 0 || ulReadLength < ulLength) {
 			if (getData(&tmp, 2, NULL) >= 0) {
 				(bBigEndian ? BIGTOHOST16(tmp) : LITTLETOHOST16(tmp));
-				if (ulLength == 0 && tmp == STR('\0')) {
+				if (ulLength == 0 && tmp == L'\0') {
 					break;
 				}
 				ulReadLength += 1;
@@ -271,7 +324,7 @@ int binDataFile::getTwoByteCharString(string_t* pString, u_int32_t ulLength, boo
 	return rv;
 }
 
-int binDataFile::getTwoByteCharString(string_t* pString, u_int32_t ulOffset, u_int32_t ulLength, bool bBigEndian) {
+int binDataFile::getTwoByteCharString(string* pString, u_int32_t ulOffset, u_int32_t ulLength, bool bBigEndian) {
 	int rv = -1;
 	if (pString) {
 		if (seek(ulOffset) >= 0) {

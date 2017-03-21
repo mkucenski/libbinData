@@ -29,6 +29,9 @@ class binData {
 		
 		virtual int getData(void* pData, u_int32_t ulSize, u_int32_t* p_ulSizeRead) = 0;								//Read ulSize bytes of data
 		virtual int getData(void* pData, u_int32_t ulSize, u_int32_t ulOffset, u_int32_t* p_ulSizeRead) = 0;	//Read ulSize bytes of data from offset ulOffset
+
+		virtual int findNonNull(u_int32_t* p_ulNonNullPos) = 0;	//Certain data contain large blocks of null values--seek past the null to real data.
+		virtual int findNonNull(u_int32_t ulOffset, u_int32_t* p_ulNonNullPos) = 0;	//Seek past the null to real data starting at a particular offset.
 };
 
 #endif /*BINDATA_HPP_*/

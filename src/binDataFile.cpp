@@ -93,6 +93,8 @@ u_int32_t binDataFile::offset() {
 
 int binDataFile::getData(void* pData, u_int32_t ulSize, u_int32_t* p_ulSizeRead) {
 	int rv = -1;
+
+	if (p_ulSizeRead) { *p_ulSizeRead = 0; }
 	
 	if (ulSize > 0) {
 		if (pData) {
@@ -185,7 +187,7 @@ int binDataFile::findNonNull(u_int32_t* p_ulNonNullPos) {
 	return rv;
 }
 
-int binDataFile::findNonNull(u_int32_t ulOffset, u_int32_t* p_ulNonNullPos) {
+int binDataFile::findNonNull(u_int32_t* p_ulNonNullPos, u_int32_t ulOffset) {
 	int rv = -1;
 
 	if (seek(ulOffset) >= 0) {

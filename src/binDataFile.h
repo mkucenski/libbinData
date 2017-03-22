@@ -43,7 +43,7 @@ class binDataFile : public binData {
 		int getData(void* pData, u_int32_t ulSize, u_int32_t ulOffset, u_int32_t* p_ulSizeRead);							//Read ulSize bytes of data from offset ulOffset
 		
 		int findNonNull(u_int32_t* p_ulNonNullPos);
-		int findNonNull(u_int32_t ulOffset, u_int32_t* p_ulNonNullPos);
+		int findNonNull(u_int32_t* p_ulNonNullPos, u_int32_t ulOffset);
 
 		//int getData(vector<char>* pData, u_int32_t ulSize, u_int32_t* p_ulReadSize = NULL);								//Read up to ulSize bytes of data and report actual bytes read into p_ulReadSize
 		//int getData(vector<char>* pData, u_int32_t ulSize, u_int32_t ulOffset, u_int32_t* p_ulReadSize = NULL);	//Read up to ulSize bytes of data from offset ulOffset and report actual bytes read into p_ulReadSize

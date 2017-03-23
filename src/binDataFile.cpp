@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#define _DEBUG_ 1
+
 #include "binDataFile.h"
 
 #include "misc/endianSwitch.h"
@@ -107,6 +109,7 @@ int binDataFile::getData(void* pData, u_int32_t ulSize, u_int32_t* p_ulSizeRead)
 				if (ulSizeRead != ulSize) {
 					DEBUG_WARNING("binDataFile::getData() Only read " << ulSizeRead << " out of " << ulSize << " requested from offset " << pos << " (error state = " << m_filestream.rdstate() << ")");
 				}
+				DEBUG_INFO("binDataFile::getData() Read " << ulSizeRead << " bytes.");
 				if (p_ulSizeRead) {
 					*p_ulSizeRead = ulSizeRead;
 				}
@@ -146,26 +149,45 @@ int binDataFile::getData(void* pData, u_int32_t ulSize, u_int32_t ulOffset, u_in
 	return rv;
 }
 
-int binDataFile::findNonNull(u_int32_t* p_ulNonNullPos) {
+int binDataFile::skipNullby64BitBlocks(u_int32_t* posNew) {
 	int rv = -1;
+
+	u_int32_t posFileCur = offset();
+	int cBufSize = 4096;
+	u_int64_t rgBuffer[cBufSize];
+	u_int32_t cGetCount = 0;
+
+	if (getData(&rgBuffer, cBufSize, &cGetCount) >= 0) {
+	} else {
+	}
+
+	while (bNull)
+}
+
+int binDataFile::findNonNull(u_int32_t cWidth, u_int32_t* p_ulNonNullPos) {
+	// TODO	Skipping by null has to be done based on a particular byte width. If you try to skip byte-by-byte,
+	// 		you can end up on an odd byte which may/may not put you out of whack with your data.
+	int rv = -1;
+
+	u_int32_t posFile = offset();
 
 	int bufferSize = 4096;
 	char buffer[bufferSize];
-	u_int32_t pos = 0;
+	u_int32_t posBuffer = 0;
 	u_int32_t sizeRead = 0;
 	bool bFound = false;
 
 	while (!bFound) {
 		if (getData(&buffer, bufferSize, &sizeRead) >= 0) {
-			pos += sizeRead;
 			DEBUG_INFO("binDataFile::findNonNull() Parsing read buffer to find start of non-null data.");
 			for (int i=0; i<bufferSize; i++) {
+				DEBUG_INFO("binDataFile::findNonNull() buffer[i]=" << buffer[i]);
 				if (buffer[i] != 0) {
 					bFound = true; 
-					pos += i;
-					DEBUG_INFO("binDataFile::findNonNull() Found non-null data at position <" << pos << ">.");
+					DEBUG_INFO("binDataFile::findNonNull() Found non-null data at position <" << posBuffer << ">.");
 					break;
 				}
+				posBuffer++;
 			}
 		} else {
 			DEBUG_ERROR("binDataFile::findNonNull() Failed reading buffer data.");
@@ -173,9 +195,11 @@ int binDataFile::findNonNull(u_int32_t* p_ulNonNullPos) {
 	}
 
 	if (bFound) {
-		DEBUG_INFO("binDataFile::findNonNull() Found valid data, returning position <" << pos << "> and seeking file pointer to same location.");
-		if (seek(pos) >= 0) {
-			*p_ulNonNullPos = pos;
+		DEBUG_INFO("binDataFile::findNonNull() Found valid data, returning position <" << posBuffer << "> and seeking file pointer to same location.");
+		if (seek(posFile + posBuffer) >= 0) {
+			if (p_ulNonNullPos != NULL) {
+				*p_ulNonNullPos = offset();
+			}
 			rv = 0;
 		} else {
 			DEBUG_ERROR("binDataFile::findNonNull() Failure seeking internal pointer to start of valid data.");
@@ -187,9 +211,10 @@ int binDataFile::findNonNull(u_int32_t* p_ulNonNullPos) {
 	return rv;
 }
 
-int binDataFile::findNonNull(u_int32_t* p_ulNonNullPos, u_int32_t ulOffset) {
+int binDataFile::findNonNull(u_int32_t ulOffset, u_int32_t* p_ulNonNullPos) {
 	int rv = -1;
 
+	DEBUG_INFO("binDataFile::findNonNull(offset) Moving to position: " << ulOffset);
 	if (seek(ulOffset) >= 0) {
 		rv = findNonNull(p_ulNonNullPos);
 	} else {

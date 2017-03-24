@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#define _DEBUG_ 1
+// #define _DEBUG_ 1
 
 #include "binDataFile.h"
 
@@ -75,11 +75,20 @@ bool binDataFile::isOpen() {
 	return rv;
 }
 
+bool binDataFile::isEOF() {
+	return m_filestream.eof();
+}
+
 int binDataFile::seek(u_int32_t ulOffset) {
 	int rv = -1;
 	
-	DEBUG_INFO("binDataFile::seek() Moving to offset " << ulOffset);
-	m_filestream.seekg(ulOffset, ios_base::beg);
+	// DEBUG_INFO("binDataFile::seek() Moving to offset " << ulOffset);
+	// m_filestream.seekg(ulOffset, ios_base::beg);
+	if (isEOF()) {
+		DEBUG_INFO("binDataFile::seek() Previously reached EOF, need to clear in order to allow seek function.");
+		m_filestream.clear();
+	}
+	m_filestream.seekg(ulOffset);
 	if (!m_filestream.eof() && !m_filestream.fail()) {
 		rv = 0;
 	} else {
@@ -96,26 +105,31 @@ u_int32_t binDataFile::offset() {
 int binDataFile::getData(void* pData, u_int32_t ulSize, u_int32_t* p_ulSizeRead) {
 	int rv = -1;
 
-	if (p_ulSizeRead) { *p_ulSizeRead = 0; }
+	if (p_ulSizeRead) { 
+		*p_ulSizeRead = 0; 
+	}
 	
 	if (ulSize > 0) {
 		if (pData) {
 			u_int32_t pos = offset();
-			DEBUG_INFO("binDataFile::getData() Reading " << ulSize << " bytes from offset " << pos);
+			if (pos == 34502832) DEBUG_INFO("binDataFile::getData() Reading " << ulSize << " bytes from offset " << pos);
 
 			m_filestream.read((char*)pData, ulSize);
 			u_int32_t ulSizeRead = m_filestream.gcount();
-			if (!m_filestream.eof() && !m_filestream.fail()) {
-				if (ulSizeRead != ulSize) {
-					DEBUG_WARNING("binDataFile::getData() Only read " << ulSizeRead << " out of " << ulSize << " requested from offset " << pos << " (error state = " << m_filestream.rdstate() << ")");
+			if (m_filestream.fail() && !m_filestream.eof()) { // Failure reading and NOT end-of-file -> something went wrong.
+				DEBUG_ERROR("binDataFile::getData() Unable to read data from offset " << pos);
+			} else { // Otherwise, either not a fail or a fail AND eof
+				if (ulSizeRead > 0) { // If we read any data, still ok.
+					if (ulSizeRead != ulSize) {
+						DEBUG_WARNING("binDataFile::getData() Only read " << ulSizeRead << " out of " << ulSize << " requested from offset " << pos << " (error state = " << m_filestream.rdstate() << ", eof=" << m_filestream.eof() << ", fail=" << m_filestream.fail() << ")");
+					}
+					if (p_ulSizeRead) {
+						*p_ulSizeRead = ulSizeRead;
+					}
+					rv = 0;
+				} else { // If we read zero data, not ok
+					DEBUG_ERROR("binDataFile::getData() Read zero bytes.");
 				}
-				DEBUG_INFO("binDataFile::getData() Read " << ulSizeRead << " bytes.");
-				if (p_ulSizeRead) {
-					*p_ulSizeRead = ulSizeRead;
-				}
-				rv = 0;
-			} else {
-				DEBUG_ERROR("binDataFile::getData() Unable to read data from offset " << offset());
 			}
 		} else {
 			DEBUG_INFO("binDataFile::getDat() No destination pointer given, moving ahead " << ulSize << " bytes");
@@ -149,76 +163,56 @@ int binDataFile::getData(void* pData, u_int32_t ulSize, u_int32_t ulOffset, u_in
 	return rv;
 }
 
-int binDataFile::skipNullby64BitBlocks(u_int32_t* posNew) {
+int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int32_t* p_posNew) {
 	int rv = -1;
 
-	u_int32_t posFileCur = offset();
-	int cBufSize = 4096;
-	u_int64_t rgBuffer[cBufSize];
-	u_int32_t cGetCount = 0;
+	if (cByteWidth == 1 || (cByteWidth % 2) == 0) {
 
-	if (getData(&rgBuffer, cBufSize, &cGetCount) >= 0) {
-	} else {
-	}
+		int cBufSize = 4096;
+		u_int8_t rgBuffer[cBufSize];
+		u_int32_t cGetCount = 0;
+		u_int32_t posFileCur = 0;
 
-	while (bNull)
-}
+		u_int16_t rposChunk = 0;
+		bool fFoundData = false;
+		while (!fFoundData) {
+			posFileCur = offset();
+			DEBUG_INFO("binDataFile::skipNullBlocks() Reading chunk from position:" << posFileCur);
+			if (getData(&rgBuffer, cBufSize, &cGetCount) >= 0) {
+				if (posFileCur == 34502832) DEBUG_INFO("binDataFile::skipNullBlocks() getData returned:" << cGetCount << " bytes.");
+				// for (int k=0; k<cBufSize; k++) {
+				// 	DEBUG_INFO("binDataFile::skipNullBlocks() rgBuffer[" << k << "]=" << (char)rgBuffer[k]);
+				// }
+				for (int i=0; i<cGetCount/cByteWidth; i++) {
+					if (posFileCur == 34502832) DEBUG_INFO("binDataFile::skipNullBlocks() Working with segment i=" << i);
+					u_int64_t vBlock = 0;
+					rposChunk = i * cByteWidth;
+		
+					for (int j=0; j<cByteWidth; j++) {
+						if (posFileCur == 34502832) DEBUG_INFO("binDataFile::skipNullBlocks() Working with byte j=" << j << " (posFileCur=" << posFileCur << ", rposChunk=" << rposChunk << ", byte=" << (u_int8_t)rgBuffer[rposChunk+j] << ")");
+						vBlock += (u_int64_t)rgBuffer[rposChunk + j] << j * 8;
+						if (posFileCur == 34502832) DEBUG_INFO("binDataFile::skipNullBlocks() vBlock=" << vBlock);
+					}
 
-int binDataFile::findNonNull(u_int32_t cWidth, u_int32_t* p_ulNonNullPos) {
-	// TODO	Skipping by null has to be done based on a particular byte width. If you try to skip byte-by-byte,
-	// 		you can end up on an odd byte which may/may not put you out of whack with your data.
-	int rv = -1;
-
-	u_int32_t posFile = offset();
-
-	int bufferSize = 4096;
-	char buffer[bufferSize];
-	u_int32_t posBuffer = 0;
-	u_int32_t sizeRead = 0;
-	bool bFound = false;
-
-	while (!bFound) {
-		if (getData(&buffer, bufferSize, &sizeRead) >= 0) {
-			DEBUG_INFO("binDataFile::findNonNull() Parsing read buffer to find start of non-null data.");
-			for (int i=0; i<bufferSize; i++) {
-				DEBUG_INFO("binDataFile::findNonNull() buffer[i]=" << buffer[i]);
-				if (buffer[i] != 0) {
-					bFound = true; 
-					DEBUG_INFO("binDataFile::findNonNull() Found non-null data at position <" << posBuffer << ">.");
-					break;
+					if (vBlock != 0) {
+						if (posFileCur == 34502832) DEBUG_INFO("binDataFile::skipNullBlocks() Found non-null @ position=" << posFileCur + rposChunk);
+						fFoundData = true;
+						if (seek(posFileCur + rposChunk) >= 0) {
+							rv = 0;
+						}
+						if (p_posNew) {
+							*p_posNew = posFileCur + rposChunk;
+						}
+						break;
+					}
 				}
-				posBuffer++;
+			} else {
+				DEBUG_INFO("binDataFile::skipNullBlocks() Unable to read data, eof?");
+				break;
 			}
-		} else {
-			DEBUG_ERROR("binDataFile::findNonNull() Failed reading buffer data.");
-		}
-	}
-
-	if (bFound) {
-		DEBUG_INFO("binDataFile::findNonNull() Found valid data, returning position <" << posBuffer << "> and seeking file pointer to same location.");
-		if (seek(posFile + posBuffer) >= 0) {
-			if (p_ulNonNullPos != NULL) {
-				*p_ulNonNullPos = offset();
-			}
-			rv = 0;
-		} else {
-			DEBUG_ERROR("binDataFile::findNonNull() Failure seeking internal pointer to start of valid data.");
 		}
 	} else {
-		DEBUG_ERROR("binDataFile::findNonNull() Unable to find start of valid data.");
-	}
-
-	return rv;
-}
-
-int binDataFile::findNonNull(u_int32_t ulOffset, u_int32_t* p_ulNonNullPos) {
-	int rv = -1;
-
-	DEBUG_INFO("binDataFile::findNonNull(offset) Moving to position: " << ulOffset);
-	if (seek(ulOffset) >= 0) {
-		rv = findNonNull(p_ulNonNullPos);
-	} else {
-		DEBUG_ERROR("binDataFile::findNonNull(offset) Unable to position file pointer to offset: " << ulOffset);
+		DEBUG_INFO("binDataFile::skipNullBlocks() Invalid cByteWidth!");
 	}
 
 	return rv;

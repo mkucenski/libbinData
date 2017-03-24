@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//#define _DEBUG_
-
 #ifndef BINDATAFILE_H_
 #define BINDATAFILE_H_
 
@@ -35,21 +33,23 @@ class binDataFile : public binData {
 		int open(string filename);
 		int close();
 		bool isOpen();
+		bool isEOF();
 		
-		int seek(u_int32_t ulOffset);																											//Move the pointer to a file offset
-		u_int32_t offset();																														//Return the current offset
+		int seek(u_int32_t ulOffset);																					//Move the pointer to a file offset
+		u_int32_t offset();																								//Return the current offset
 		
-		int getData(void* pData, u_int32_t ulSize, u_int32_t* p_ulSizeRead);														//Read ulSize bytes of data
-		int getData(void* pData, u_int32_t ulSize, u_int32_t ulOffset, u_int32_t* p_ulSizeRead);							//Read ulSize bytes of data from offset ulOffset
+		int getData(void* pData, u_int32_t ulSize, u_int32_t* p_ulSizeRead);								//Read ulSize bytes of data
+		int getData(void* pData, u_int32_t ulSize, u_int32_t ulOffset, u_int32_t* p_ulSizeRead);	//Read ulSize bytes of data from offset ulOffset
 		
-		int findNonNull(u_int32_t* p_ulNonNullPos);
-		int findNonNull(u_int32_t ulOffset, u_int32_t* p_ulNonNullPos);
+		int skipNullBlocks(u_int8_t cByteWidth, u_int32_t* p_posNew);										// From the current position in the file, skip over
+																																// cByteWidth blocks of NULL data. (Useful for sparse
+																																// files.)
 
-		//int getData(vector<char>* pData, u_int32_t ulSize, u_int32_t* p_ulReadSize = NULL);								//Read up to ulSize bytes of data and report actual bytes read into p_ulReadSize
+		//int getData(vector<char>* pData, u_int32_t ulSize, u_int32_t* p_ulReadSize = NULL);		//Read up to ulSize bytes of data and report actual bytes read into p_ulReadSize
 		//int getData(vector<char>* pData, u_int32_t ulSize, u_int32_t ulOffset, u_int32_t* p_ulReadSize = NULL);	//Read up to ulSize bytes of data from offset ulOffset and report actual bytes read into p_ulReadSize
 		
-		int getString(string* pString, u_int32_t ulLength);																			//Read ulLength characters into pString
-		int getString(string* pString, u_int32_t ulOffset, u_int32_t ulLength);													//Read ulLength characters from offset ulOffset into pString
+		int getString(string* pString, u_int32_t ulLength);													//Read ulLength characters into pString
+		int getString(string* pString, u_int32_t ulOffset, u_int32_t ulLength);							//Read ulLength characters from offset ulOffset into pString
 
 		int getTwoByteCharString(string* pString, u_int32_t ulLength, bool bBigEndian=false);
 		int getTwoByteCharString(string* pString, u_int32_t ulOffset, u_int32_t ulLength, bool bBigEndian=false);

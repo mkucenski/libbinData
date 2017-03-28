@@ -79,11 +79,9 @@ bool binDataFile::isEOF() {
 	return m_filestream.eof();
 }
 
-int binDataFile::seek(u_int32_t ulOffset) {
+int binDataFile::seek(u_int64_t ulOffset) {
 	int rv = -1;
 	
-	// DEBUG_INFO("binDataFile::seek() Moving to offset " << ulOffset);
-	// m_filestream.seekg(ulOffset, ios_base::beg);
 	if (isEOF()) {
 		DEBUG_INFO("binDataFile::seek() Previously reached EOF, need to clear in order to allow seek function.");
 		m_filestream.clear();
@@ -98,11 +96,11 @@ int binDataFile::seek(u_int32_t ulOffset) {
 	return rv;
 }
 
-u_int32_t binDataFile::offset() {
+u_int64_t binDataFile::offset() {
 	return m_filestream.tellg();
 }
 
-int binDataFile::getData(void* pData, u_int32_t ulSize, u_int32_t* p_ulSizeRead) {
+int binDataFile::getData(void* pData, u_int64_t ulSize, u_int64_t* p_ulSizeRead) {
 	int rv = -1;
 
 	if (p_ulSizeRead) { 
@@ -111,11 +109,10 @@ int binDataFile::getData(void* pData, u_int32_t ulSize, u_int32_t* p_ulSizeRead)
 	
 	if (ulSize > 0) {
 		if (pData) {
-			u_int32_t pos = offset();
-			if (pos == 34502832) DEBUG_INFO("binDataFile::getData() Reading " << ulSize << " bytes from offset " << pos);
-
+			u_int64_t pos = offset();
 			m_filestream.read((char*)pData, ulSize);
-			u_int32_t ulSizeRead = m_filestream.gcount();
+			u_int64_t ulSizeRead = m_filestream.gcount();
+
 			if (m_filestream.fail() && !m_filestream.eof()) { // Failure reading and NOT end-of-file -> something went wrong.
 				DEBUG_ERROR("binDataFile::getData() Unable to read data from offset " << pos);
 			} else { // Otherwise, either not a fail or a fail AND eof
@@ -147,7 +144,7 @@ int binDataFile::getData(void* pData, u_int32_t ulSize, u_int32_t* p_ulSizeRead)
 	return rv;
 }
 
-int binDataFile::getData(void* pData, u_int32_t ulSize, u_int32_t ulOffset, u_int32_t* p_ulSizeRead) {
+int binDataFile::getData(void* pData, u_int64_t ulSize, u_int64_t ulOffset, u_int64_t* p_ulSizeRead) {
 	int rv = -1;
 	
 	if (ulSize > 0) {
@@ -163,45 +160,43 @@ int binDataFile::getData(void* pData, u_int32_t ulSize, u_int32_t ulOffset, u_in
 	return rv;
 }
 
-int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int32_t* p_posNew) {
+int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int64_t* p_posNew) {
 	int rv = -1;
 
 	if (cByteWidth == 1 || (cByteWidth % 2) == 0) {
 
 		int cBufSize = 4096;
 		u_int8_t rgBuffer[cBufSize];
-		u_int32_t cGetCount = 0;
-		u_int32_t posFileCur = 0;
+		u_int64_t cGetCount = 0;
+		u_int64_t posFileCur = 0;
 
 		u_int16_t rposChunk = 0;
-		bool fFoundData = false;
-		while (!fFoundData) {
+		bool fNonZeroFound = false;
+		while (!fNonZeroFound) {
 			posFileCur = offset();
-			DEBUG_INFO("binDataFile::skipNullBlocks() Reading chunk from position:" << posFileCur);
+			memset(&rgBuffer, 0, cBufSize);
+			DEBUG_INFO("binDataFile::skipNullBlocks() Reading buffer[" << cBufSize << "] from position: " << posFileCur);
+
 			if (getData(&rgBuffer, cBufSize, &cGetCount) >= 0) {
-				if (posFileCur == 34502832) DEBUG_INFO("binDataFile::skipNullBlocks() getData returned:" << cGetCount << " bytes.");
-				// for (int k=0; k<cBufSize; k++) {
-				// 	DEBUG_INFO("binDataFile::skipNullBlocks() rgBuffer[" << k << "]=" << (char)rgBuffer[k]);
-				// }
-				for (int i=0; i<cGetCount/cByteWidth; i++) {
-					if (posFileCur == 34502832) DEBUG_INFO("binDataFile::skipNullBlocks() Working with segment i=" << i);
-					u_int64_t vBlock = 0;
-					rposChunk = i * cByteWidth;
-		
-					for (int j=0; j<cByteWidth; j++) {
-						if (posFileCur == 34502832) DEBUG_INFO("binDataFile::skipNullBlocks() Working with byte j=" << j << " (posFileCur=" << posFileCur << ", rposChunk=" << rposChunk << ", byte=" << (u_int8_t)rgBuffer[rposChunk+j] << ")");
-						vBlock += (u_int64_t)rgBuffer[rposChunk + j] << j * 8;
-						if (posFileCur == 34502832) DEBUG_INFO("binDataFile::skipNullBlocks() vBlock=" << vBlock);
+				for (int i=0; i<cGetCount/cByteWidth; i++) { 						// Loop through cByteWidth chunks
+					rposChunk = i * cByteWidth; 											// Relative position of the chunk within the larger buffer
+
+					for (int j=0; j<cByteWidth; j++) {									// Loop through individual bytes in the chunk looking for non-zero values
+						if (rgBuffer[rposChunk + j] != 0) {
+							fNonZeroFound = true;
+							break;
+						}
 					}
 
-					if (vBlock != 0) {
-						if (posFileCur == 34502832) DEBUG_INFO("binDataFile::skipNullBlocks() Found non-null @ position=" << posFileCur + rposChunk);
-						fFoundData = true;
+					if (fNonZeroFound) {
+						DEBUG_INFO("binDataFile::skipNullBlocks() Found non-null @ position=" << posFileCur + rposChunk);
 						if (seek(posFileCur + rposChunk) >= 0) {
+							if (p_posNew) {
+								*p_posNew = posFileCur + rposChunk;
+							}
 							rv = 0;
-						}
-						if (p_posNew) {
-							*p_posNew = posFileCur + rposChunk;
+						} else {
+							DEBUG_ERROR("binDataFile::skipNullBlocks() Failure moving to non-null position: " << posFileCur + rposChunk);
 						}
 						break;
 					}
@@ -218,7 +213,7 @@ int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int32_t* p_posNew) {
 	return rv;
 }
 
-/*int binDataFile::getData(vector<char>* pData, u_int32_t ulSize, u_int32_t* p_ulReadSize) {
+/*int binDataFile::getData(vector<char>* pData, u_int64_t ulSize, u_int64_t* p_ulReadSize) {
 	int rv = -1;
 	
 	if (ulSize > 0) {
@@ -227,7 +222,7 @@ int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int32_t* p_posNew) {
 	
 			rv = 0;
 			char tmp;
-			u_int32_t ulReadSize = 0;
+			u_int64_t ulReadSize = 0;
 			while (ulReadSize < ulSize) {
 				if (getData(&tmp, 1) >= 0) {
 					ulReadSize += 1;
@@ -250,7 +245,7 @@ int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int32_t* p_posNew) {
 	return rv;
 }
 
-int binDataFile::getData(vector<char>* pData, u_int32_t ulSize, u_int32_t ulOffset, u_int32_t* p_ulReadSize) {
+int binDataFile::getData(vector<char>* pData, u_int64_t ulSize, u_int64_t ulOffset, u_int64_t* p_ulReadSize) {
 	int rv = -1;
 	
 	if (ulSize > 0) {
@@ -270,7 +265,7 @@ int binDataFile::getData(vector<char>* pData, u_int32_t ulSize, u_int32_t ulOffs
 	return rv;
 }*/
 
-int binDataFile::getString(string* pString, u_int32_t ulLength) {
+int binDataFile::getString(string* pString, u_int64_t ulLength) {
 	int rv = -1;
 	
 	if (pString) {
@@ -278,7 +273,7 @@ int binDataFile::getString(string* pString, u_int32_t ulLength) {
 
 		rv = 0;
 		char tmp;
-		u_int32_t ulReadLength = 0;
+		u_int64_t ulReadLength = 0;
 		while (ulLength == 0 || ulReadLength < ulLength) {
 			if (getData(&tmp, 1, NULL) >= 0) {
 				if (ulLength == 0 && tmp == '\0') {
@@ -299,7 +294,7 @@ int binDataFile::getString(string* pString, u_int32_t ulLength) {
 	return rv;
 }
 
-int binDataFile::getString(string* pString, u_int32_t ulOffset, u_int32_t ulLength) {
+int binDataFile::getString(string* pString, u_int64_t ulOffset, u_int64_t ulLength) {
 	int rv = -1;
 
 	if (pString) {
@@ -315,7 +310,7 @@ int binDataFile::getString(string* pString, u_int32_t ulOffset, u_int32_t ulLeng
 	return rv;
 }
 
-int binDataFile::getTwoByteCharString(string* pString, u_int32_t ulLength, bool bBigEndian) {
+int binDataFile::getTwoByteCharString(string* pString, u_int64_t ulLength, bool bBigEndian) {
 	int rv = -1;
 	
 	if (pString) {
@@ -323,7 +318,7 @@ int binDataFile::getTwoByteCharString(string* pString, u_int32_t ulLength, bool 
 		
 		rv = 0;
 		u_int16_t tmp;
-		u_int32_t ulReadLength = 0;
+		u_int64_t ulReadLength = 0;
 		while (ulLength == 0 || ulReadLength < ulLength) {
 			if (getData(&tmp, 2, NULL) >= 0) {
 				(bBigEndian ? BIGTOHOST16(tmp) : LITTLETOHOST16(tmp));
@@ -345,7 +340,7 @@ int binDataFile::getTwoByteCharString(string* pString, u_int32_t ulLength, bool 
 	return rv;
 }
 
-int binDataFile::getTwoByteCharString(string* pString, u_int32_t ulOffset, u_int32_t ulLength, bool bBigEndian) {
+int binDataFile::getTwoByteCharString(string* pString, u_int64_t ulOffset, u_int64_t ulLength, bool bBigEndian) {
 	int rv = -1;
 	if (pString) {
 		if (seek(ulOffset) >= 0) {

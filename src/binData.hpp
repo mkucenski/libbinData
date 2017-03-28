@@ -27,10 +27,10 @@ class binData {
 		binData() {};
 		virtual ~binData() {};
 		
-		virtual int getData(void* pData, u_int32_t ulSize, u_int32_t* p_ulSizeRead) = 0;								//Read ulSize bytes of data
-		virtual int getData(void* pData, u_int32_t ulSize, u_int32_t ulOffset, u_int32_t* p_ulSizeRead) = 0;	//Read ulSize bytes of data from offset ulOffset
+		virtual int getData(void* pData, u_int64_t ulSize, u_int64_t* p_ulSizeRead) = 0;								//Read ulSize bytes of data
+		virtual int getData(void* pData, u_int64_t ulSize, u_int64_t ulOffset, u_int64_t* p_ulSizeRead) = 0;	//Read ulSize bytes of data from offset ulOffset
 
-		virtual int skipNullBlocks(u_int8_t cByteWidth, u_int32_t* p_posNew) = 0;										// From the current position in the file, skip over
+		virtual int skipNullBlocks(u_int8_t cByteWidth, u_int64_t* p_posNew) = 0;										// From the current position in the file, skip over
 																																				// cByteWidth blocks of NULL data. (Useful for sparse
 																																				// files.)
 };

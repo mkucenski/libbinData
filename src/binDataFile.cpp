@@ -75,28 +75,7 @@ bool binDataFile::isOpen() {
 	return rv;
 }
 
-bool binDataFile::isEOF() {
-	return m_filestream.eof();
-}
-
-int binDataFile::seek(u_int64_t ulOffset) {
-	int rv = -1;
-	
-	if (isEOF()) {
-		DEBUG_INFO("binDataFile::seek() Previously reached EOF, need to clear in order to allow seek function.");
-		m_filestream.clear();
-	}
-	m_filestream.seekg(ulOffset);
-	if (!m_filestream.eof() && !m_filestream.fail()) {
-		rv = 0;
-	} else {
-		DEBUG_ERROR("binDataFile::seek() Unable to position file pointer to offset: " << ulOffset);
-	}
-	
-	return rv;
-}
-
-u_int64_t binDataFile::offset() {
+u_int64_t binDataFile::currPos() {
 	return m_filestream.tellg();
 }
 
@@ -107,54 +86,70 @@ int binDataFile::getData(void* pData, u_int64_t ulSize, u_int64_t* p_ulSizeRead)
 		*p_ulSizeRead = 0; 
 	}
 	
-	if (ulSize > 0) {
-		if (pData) {
-			u_int64_t pos = offset();
-			m_filestream.read((char*)pData, ulSize);
-			u_int64_t ulSizeRead = m_filestream.gcount();
+	if (ulSize > 0 && pData) {
+		u_int64_t pos = currPos();
+		m_filestream.read((char*)pData, ulSize);
+		u_int64_t ulSizeRead = m_filestream.gcount();
 
-			if (m_filestream.fail() && !m_filestream.eof()) { // Failure reading and NOT end-of-file -> something went wrong.
-				DEBUG_ERROR("binDataFile::getData() Unable to read data from offset " << pos);
-			} else { // Otherwise, either not a fail or a fail AND eof
-				if (ulSizeRead > 0) { // If we read any data, still ok.
-					if (ulSizeRead != ulSize) {
-						DEBUG_WARNING("binDataFile::getData() Only read " << ulSizeRead << " out of " << ulSize << " requested from offset " << pos << " (error state = " << m_filestream.rdstate() << ", eof=" << m_filestream.eof() << ", fail=" << m_filestream.fail() << ")");
-					}
-					if (p_ulSizeRead) {
-						*p_ulSizeRead = ulSizeRead;
-					}
-					rv = 0;
-				} else { // If we read zero data, not ok
-					DEBUG_ERROR("binDataFile::getData() Read zero bytes.");
+		if (m_filestream.fail() && !m_filestream.eof()) { // Failure reading and NOT end-of-file -> something went wrong.
+			DEBUG_ERROR("binDataFile::getData() Unable to read data from offset " << pos);
+		} else { // Otherwise, either not a fail or a fail AND eof
+			if (ulSizeRead > 0) { // If we read any data, still ok.
+				if (ulSizeRead != ulSize) {
+					DEBUG_WARNING("binDataFile::getData() Only read " << ulSizeRead << " out of " << ulSize << " requested from offset " << pos << " (error state = " << m_filestream.rdstate() << ", eof=" << m_filestream.eof() << ", fail=" << m_filestream.fail() << ")");
 				}
-			}
-		} else {
-			DEBUG_INFO("binDataFile::getDat() No destination pointer given, moving ahead " << ulSize << " bytes");
-			m_filestream.seekg(ulSize, ios_base::cur);
-			if (!m_filestream.eof() && !m_filestream.fail()) {
+				if (p_ulSizeRead) {
+					*p_ulSizeRead = ulSizeRead;
+				}
 				rv = 0;
-			} else {
-				DEBUG_ERROR("binDataFile::getData() Unable to move pointer ahead " << ulSize << " bytes from offset " << offset());
+			} else { // If we read zero data, not ok
+				DEBUG_ERROR("binDataFile::getData() Read zero bytes.");
 			}
 		}
 	} else {
-		DEBUG_ERROR("binDataFile::getData() Requested data size <= 0");
+		DEBUG_ERROR("binDataFile::getData() Invalid function parameters: ulSize=" << ulSize << ", pData=" << pData);
 	}		
 	
+	return rv;
+}
+
+int binDataFile::movePos(int64_t pos, bool fRelative) {
+	int rv = -1;
+
+	int64_t posFileCur = currPos();
+
+	if (m_filestream.eof()) {
+		DEBUG_INFO("binDataFile::movePos() Previously reached EOF, need to clear first.");
+		m_filestream.clear();
+	}
+
+	// TODO	Does this work moving forward and reverse?
+	if (fRelative) {
+		m_filestream.seekg(pos, ios_base::cur);
+	} else {
+		m_filestream.seekg(pos);
+	}
+
+	if (!m_filestream.eof() && !m_filestream.fail()) {
+		rv = 0;
+	} else {
+		DEBUG_ERROR("binDataFile::movePos() Unable to position file pointer. (cur=" << posFileCur << ", pos=" << pos << ", fRelative=" << fRelative << ")");
+	}
+
 	return rv;
 }
 
 int binDataFile::getData(void* pData, u_int64_t ulSize, u_int64_t ulOffset, u_int64_t* p_ulSizeRead) {
 	int rv = -1;
 	
-	if (ulSize > 0) {
-		if (seek(ulOffset) >= 0) {
+	if (ulSize > 0 && pData) {
+		if (movePos(ulOffset) >= 0) {
 			rv = getData(pData, ulSize, p_ulSizeRead);
 		} else {
 			DEBUG_ERROR("binDataFile::getData(offset) Unable to position file pointer to offset: " << ulOffset);
 		}
 	} else {
-		DEBUG_ERROR("binDataFile::getData(offset) Requested data size <= 0.");
+		DEBUG_ERROR("binDataFile::getData(offset) Invalid function parameters: ulSize=" << ulSize << ", pData=" << pData);
 	}		
 
 	return rv;
@@ -173,7 +168,7 @@ int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int64_t* p_posNew) {
 		u_int16_t rposChunk = 0;
 		bool fNonZeroFound = false;
 		while (!fNonZeroFound) {
-			posFileCur = offset();
+			posFileCur = currPos();
 			memset(&rgBuffer, 0, cBufSize);
 			DEBUG_INFO("binDataFile::skipNullBlocks() Reading buffer[" << cBufSize << "] from position: " << posFileCur);
 
@@ -190,7 +185,7 @@ int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int64_t* p_posNew) {
 
 					if (fNonZeroFound) {
 						DEBUG_INFO("binDataFile::skipNullBlocks() Found non-null @ position=" << posFileCur + rposChunk);
-						if (seek(posFileCur + rposChunk) >= 0) {
+						if (movePos(posFileCur + rposChunk) >= 0) {
 							if (p_posNew) {
 								*p_posNew = posFileCur + rposChunk;
 							}
@@ -212,58 +207,6 @@ int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int64_t* p_posNew) {
 
 	return rv;
 }
-
-/*int binDataFile::getData(vector<char>* pData, u_int64_t ulSize, u_int64_t* p_ulReadSize) {
-	int rv = -1;
-	
-	if (ulSize > 0) {
-		if (pData) {
-			pData->clear();
-	
-			rv = 0;
-			char tmp;
-			u_int64_t ulReadSize = 0;
-			while (ulReadSize < ulSize) {
-				if (getData(&tmp, 1) >= 0) {
-					ulReadSize += 1;
-					pData->push_back(tmp);
-				} else {
-					DEBUG_WARNING("binDataFile::getData(<vector>) Failure reading value. Read " << ulReadSize << " out of " << ulSize << " requested bytes.");
-					break;
-				}
-			}
-			if (p_ulReadSize) {
-				*p_ulReadSize = ulReadSize;
-			}
-		} else {
-			DEBUG_ERROR("binDataFile::getData(<vector>) Invalid destination pointer.");
-		}
-	} else {
-		DEBUG_ERROR("binDataFile::getData(<vector>) Requested data size <= 0");
-	}
-		
-	return rv;
-}
-
-int binDataFile::getData(vector<char>* pData, u_int64_t ulSize, u_int64_t ulOffset, u_int64_t* p_ulReadSize) {
-	int rv = -1;
-	
-	if (ulSize > 0) {
-		if (pData) {
-			if (seek(ulOffset) >= 0) {
-				rv = getData(pData, ulSize, p_ulReadSize);
-			} else {
-				DEBUG_ERROR("binDataFile::getString(<vector> offset) Error on seek to offset " << ulOffset);
-			}
-		} else {
-			DEBUG_ERROR("binDataFile::getString(<vector> offset) Invalid destination pointer.");
-		}
-	} else {
-		DEBUG_ERROR("binDataFile::getData(<vector> offset) Requested data size <= 0.");
-	}		
-
-	return rv;
-}*/
 
 int binDataFile::getString(string* pString, u_int64_t ulLength) {
 	int rv = -1;
@@ -298,10 +241,10 @@ int binDataFile::getString(string* pString, u_int64_t ulOffset, u_int64_t ulLeng
 	int rv = -1;
 
 	if (pString) {
-		if (seek(ulOffset) >= 0) {
+		if (movePos(ulOffset) >= 0) {
 			rv = getString(pString, ulLength);
 		} else {
-			DEBUG_ERROR("binDataFile::getString(offset) Error on seek to offset " << ulOffset);
+			DEBUG_ERROR("binDataFile::getString(offset) Error on moving to offset " << ulOffset);
 		}
 	} else {
 		DEBUG_ERROR("binDataFile::getString(offset) Invalid destination pointer.");
@@ -343,10 +286,10 @@ int binDataFile::getTwoByteCharString(string* pString, u_int64_t ulLength, bool 
 int binDataFile::getTwoByteCharString(string* pString, u_int64_t ulOffset, u_int64_t ulLength, bool bBigEndian) {
 	int rv = -1;
 	if (pString) {
-		if (seek(ulOffset) >= 0) {
+		if (movePos(ulOffset) >= 0) {
 				rv = getTwoByteCharString(pString, ulLength, bBigEndian);
 		} else {
-			DEBUG_ERROR("binDataFile::getTwoByteCharString(offset) Error on seek to offset " << ulOffset);
+			DEBUG_ERROR("binDataFile::getTwoByteCharString(offset) Error on moving to offset " << ulOffset);
 		}
 	} else {
 		DEBUG_ERROR("binDataFile::getTwoByteCharString(offset) Invalid destination pointer.");

@@ -24,7 +24,9 @@ binDataFile::binDataFile() {
 
 binDataFile::binDataFile(string filename) {
 	int rv = open(filename);
-	DEBUG_INFO("binDataFile::binDataFile() open(" << filename << ") returned: " << rv);
+	if (rv < 0) {
+		DEBUG_ERROR("binDataFile::binDataFile() open(" << filename << ") returned: " << rv);
+	}
 }
 
 binDataFile::~binDataFile() {
@@ -91,6 +93,8 @@ int binDataFile::getData(void* pData, u_int64_t ulSize, u_int64_t* p_ulSizeRead)
 		m_filestream.read((char*)pData, ulSize);
 		u_int64_t ulSizeRead = m_filestream.gcount();
 
+		// TODO	Need to setup return values that mean something so that calls to this function know what happened.
+		//
 		if (m_filestream.fail() && !m_filestream.eof()) { // Failure reading and NOT end-of-file -> something went wrong.
 			DEBUG_ERROR("binDataFile::getData() Unable to read data from offset " << pos);
 		} else { // Otherwise, either not a fail or a fail AND eof
@@ -124,6 +128,7 @@ int binDataFile::movePos(int64_t pos, bool fRelative) {
 	}
 
 	// TODO	Does this work moving forward and reverse?
+	//
 	if (fRelative) {
 		m_filestream.seekg(pos, ios_base::cur);
 	} else {
@@ -170,7 +175,6 @@ int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int64_t* p_posNew) {
 		while (!fNonZeroFound) {
 			posFileCur = currPos();
 			memset(&rgBuffer, 0, cBufSize);
-			DEBUG_INFO("binDataFile::skipNullBlocks() Reading buffer[" << cBufSize << "] from position: " << posFileCur);
 
 			if (getData(&rgBuffer, cBufSize, &cGetCount) >= 0) {
 				for (int i=0; i<cGetCount/cByteWidth; i++) { 						// Loop through cByteWidth chunks
@@ -184,7 +188,6 @@ int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int64_t* p_posNew) {
 					}
 
 					if (fNonZeroFound) {
-						DEBUG_INFO("binDataFile::skipNullBlocks() Found non-null @ position=" << posFileCur + rposChunk);
 						if (movePos(posFileCur + rposChunk) >= 0) {
 							if (p_posNew) {
 								*p_posNew = posFileCur + rposChunk;
@@ -197,12 +200,14 @@ int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int64_t* p_posNew) {
 					}
 				}
 			} else {
-				DEBUG_INFO("binDataFile::skipNullBlocks() Unable to read data, eof?");
+				// TODO Need to better clarify what's happening when getData fails.
+				//
+				DEBUG_WARNING("binDataFile::skipNullBlocks() Unable to read data, eof?");
 				break;
 			}
 		}
 	} else {
-		DEBUG_INFO("binDataFile::skipNullBlocks() Invalid cByteWidth!");
+		DEBUG_ERROR("binDataFile::skipNullBlocks() Invalid cByteWidth!");
 	}
 
 	return rv;
@@ -210,7 +215,10 @@ int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int64_t* p_posNew) {
 
 int binDataFile::getString(string* pString, u_int64_t ulLength) {
 	int rv = -1;
-	
+
+	// TODO	This is not very clean/efficient--can I use the ifstream::get function to read null-terminated strings.
+	// 		Should this function name be more descriptive in that it is reading null-terminated strings?
+	//
 	if (pString) {
 		pString->clear();
 
@@ -256,6 +264,9 @@ int binDataFile::getString(string* pString, u_int64_t ulOffset, u_int64_t ulLeng
 int binDataFile::getTwoByteCharString(string* pString, u_int64_t ulLength, bool bBigEndian) {
 	int rv = -1;
 	
+	// TODO	This is a bit of a hack to pseudo-support UNICODE (two-byte) strings.
+	// 		Is there a better, cleaner, and more robust way to do this?
+	//
 	if (pString) {
 		pString->clear();
 		

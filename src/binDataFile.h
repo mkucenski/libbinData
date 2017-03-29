@@ -33,7 +33,6 @@ class binDataFile : public binData {
 		int open(string filename);
 		int close();
 		bool isOpen();
-		bool isEOF();
 		
 		int movePos(int64_t ulOffset, bool fRelative=false);													//Move the pointer to a file offset; relative flags allows movement based on the current position
 		u_int64_t currPos();																								//Return the current position

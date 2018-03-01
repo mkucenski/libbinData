@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "binDataSearcher.hpp"
-
+// #define _DEBUG_
 #include "misc/debugMsgs.h"
+#include "misc/errMsgs.h"
+
+#include "binDataSearcher.hpp"
 
 binDataSearcher::binDataSearcher(	vector<u_int8_t>& vIdentifiers, 
 												u_int32_t uiIdentifierLeadIn,
@@ -76,7 +78,7 @@ int binDataSearcher::search(void* pData, u_int32_t ulSize, vector<u_int8_t>* pSe
 			}
 		}
 	} else {
-		DEBUG_ERROR("binDataSearcher::search() Invalid data pointer or size value.");
+		ERROR("binDataSearcher::search() Invalid data pointer or size value.");
 	}*/
 	
 	return rv;

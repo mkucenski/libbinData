@@ -1,5 +1,5 @@
-AM_CXXFLAGS = -I../../
+AM_CXXFLAGS = -I../../../
 
 noinst_LIBRARIES = libbinData.a
-libbinData_a_SOURCES = binData.hpp binDataFile.h binDataFile.cpp binDataSearcher.hpp binDataSearcher.cpp
+libbinData_a_SOURCES = binData.hpp binDataFile.cpp binDataSearcher.hpp binDataSearcher.cpp
 

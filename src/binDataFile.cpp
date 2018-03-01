@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// #define _DEBUG_ 1
+// #define _DEBUG_
+#include "misc/debugMsgs.h"
+#include "misc/errMsgs.h"
 
 #include "binDataFile.h"
-
 #include "misc/endianSwitch.h"
-#include "misc/debugMsgs.h"
 
 binDataFile::binDataFile() {
 }
@@ -25,7 +25,7 @@ binDataFile::binDataFile() {
 binDataFile::binDataFile(string filename) {
 	int rv = open(filename);
 	if (rv < 0) {
-		DEBUG_ERROR("binDataFile::binDataFile() open(" << filename << ") returned: " << rv);
+		ERROR("binDataFile::binDataFile() open(" << filename << ") returned: " << rv);
 	}
 }
 
@@ -41,10 +41,10 @@ int binDataFile::close() {
 		if (!m_filestream.fail()) {
 			rv = 0; 
 		} else {
-			DEBUG_ERROR("binDataFile::close() Failure closing file.");
+			ERROR("binDataFile::close() Failure closing file.");
 		}
 	} else {
-		DEBUG_WARNING("binDataFile::close() File not open.");
+		WARNING("binDataFile::close() File not open.");
 	}
 	
 	return rv;
@@ -58,10 +58,10 @@ int binDataFile::open(string filename) {
 		if (!m_filestream.fail()) {
 			rv = 0;
 		} else {
-			DEBUG_ERROR("binDataFile::open() Failure opening file " << filename << ".");
+			ERROR("binDataFile::open() Failure opening file " << filename << ".");
 		}
 	} else {
-		DEBUG_ERROR("binDataFile::open() File " << filename << " already open.");
+		ERROR("binDataFile::open() File " << filename << " already open.");
 	}
 
 	return rv;
@@ -96,22 +96,22 @@ int binDataFile::getData(void* pData, u_int64_t ulSize, u_int64_t* p_ulSizeRead)
 		// TODO	Need to setup return values that mean something so that calls to this function know what happened.
 		//
 		if (m_filestream.fail() && !m_filestream.eof()) { // Failure reading and NOT end-of-file -> something went wrong.
-			DEBUG_ERROR("binDataFile::getData() Unable to read data from offset " << pos);
+			ERROR("binDataFile::getData() Unable to read data from offset " << pos);
 		} else { // Otherwise, either not a fail or a fail AND eof
 			if (ulSizeRead > 0) { // If we read any data, still ok.
 				if (ulSizeRead != ulSize) {
-					DEBUG_WARNING("binDataFile::getData() Only read " << ulSizeRead << " out of " << ulSize << " requested from offset " << pos << " (error state = " << m_filestream.rdstate() << ", eof=" << m_filestream.eof() << ", fail=" << m_filestream.fail() << ")");
+					WARNING("binDataFile::getData() Only read " << ulSizeRead << " out of " << ulSize << " requested from offset " << pos << " (error state = " << m_filestream.rdstate() << ", eof=" << m_filestream.eof() << ", fail=" << m_filestream.fail() << ")");
 				}
 				if (p_ulSizeRead) {
 					*p_ulSizeRead = ulSizeRead;
 				}
 				rv = 0;
 			} else { // If we read zero data, not ok
-				DEBUG_ERROR("binDataFile::getData() Read zero bytes.");
+				ERROR("binDataFile::getData() Read zero bytes.");
 			}
 		}
 	} else {
-		DEBUG_ERROR("binDataFile::getData() Invalid function parameters: ulSize=" << ulSize << ", pData=" << pData);
+		ERROR("binDataFile::getData() Invalid function parameters: ulSize=" << ulSize << ", pData=" << pData);
 	}		
 	
 	return rv;
@@ -123,7 +123,7 @@ int binDataFile::movePos(int64_t pos, bool fRelative) {
 	int64_t posFileCur = currPos();
 
 	if (m_filestream.eof()) {
-		DEBUG_INFO("binDataFile::movePos() Previously reached EOF, need to clear first.");
+		DEBUG("binDataFile::movePos() Previously reached EOF, need to clear first.");
 		m_filestream.clear();
 	}
 
@@ -138,7 +138,7 @@ int binDataFile::movePos(int64_t pos, bool fRelative) {
 	if (!m_filestream.eof() && !m_filestream.fail()) {
 		rv = 0;
 	} else {
-		DEBUG_ERROR("binDataFile::movePos() Unable to position file pointer. (cur=" << posFileCur << ", pos=" << pos << ", fRelative=" << fRelative << ")");
+		ERROR("binDataFile::movePos() Unable to position file pointer. (cur=" << posFileCur << ", pos=" << pos << ", fRelative=" << fRelative << ")");
 	}
 
 	return rv;
@@ -151,10 +151,10 @@ int binDataFile::getData(void* pData, u_int64_t ulSize, u_int64_t ulOffset, u_in
 		if (movePos(ulOffset) >= 0) {
 			rv = getData(pData, ulSize, p_ulSizeRead);
 		} else {
-			DEBUG_ERROR("binDataFile::getData(offset) Unable to position file pointer to offset: " << ulOffset);
+			ERROR("binDataFile::getData(offset) Unable to position file pointer to offset: " << ulOffset);
 		}
 	} else {
-		DEBUG_ERROR("binDataFile::getData(offset) Invalid function parameters: ulSize=" << ulSize << ", pData=" << pData);
+		ERROR("binDataFile::getData(offset) Invalid function parameters: ulSize=" << ulSize << ", pData=" << pData);
 	}		
 
 	return rv;
@@ -194,7 +194,7 @@ int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int64_t* p_posNew) {
 							}
 							rv = 0;
 						} else {
-							DEBUG_ERROR("binDataFile::skipNullBlocks() Failure moving to non-null position: " << posFileCur + rposChunk);
+							ERROR("binDataFile::skipNullBlocks() Failure moving to non-null position: " << posFileCur + rposChunk);
 						}
 						break;
 					}
@@ -202,12 +202,12 @@ int binDataFile::skipNullBlocks(u_int8_t cByteWidth, u_int64_t* p_posNew) {
 			} else {
 				// TODO Need to better clarify what's happening when getData fails.
 				//
-				DEBUG_WARNING("binDataFile::skipNullBlocks() Unable to read data, eof?");
+				WARNING("binDataFile::skipNullBlocks() Unable to read data, eof?");
 				break;
 			}
 		}
 	} else {
-		DEBUG_ERROR("binDataFile::skipNullBlocks() Invalid cByteWidth!");
+		ERROR("binDataFile::skipNullBlocks() Invalid cByteWidth!");
 	}
 
 	return rv;
@@ -233,13 +233,13 @@ int binDataFile::getString(string* pString, u_int64_t ulLength) {
 				ulReadLength += 1;
 				pString->push_back(tmp);
 			} else {
-				DEBUG_ERROR("binDataFile::getString() Failure reading character.");
+				ERROR("binDataFile::getString() Failure reading character.");
 				rv = -1;
 				break;
 			}
 		}
 	} else {
-		DEBUG_ERROR("binDataFile::getString() Invalid destination pointer.");
+		ERROR("binDataFile::getString() Invalid destination pointer.");
 	}
 	
 	return rv;
@@ -252,10 +252,10 @@ int binDataFile::getString(string* pString, u_int64_t ulOffset, u_int64_t ulLeng
 		if (movePos(ulOffset) >= 0) {
 			rv = getString(pString, ulLength);
 		} else {
-			DEBUG_ERROR("binDataFile::getString(offset) Error on moving to offset " << ulOffset);
+			ERROR("binDataFile::getString(offset) Error on moving to offset " << ulOffset);
 		}
 	} else {
-		DEBUG_ERROR("binDataFile::getString(offset) Invalid destination pointer.");
+		ERROR("binDataFile::getString(offset) Invalid destination pointer.");
 	}
 
 	return rv;
@@ -282,13 +282,13 @@ int binDataFile::getTwoByteCharString(string* pString, u_int64_t ulLength, bool 
 				ulReadLength += 1;
 				pString->push_back(tmp);
 			} else {
-				DEBUG_ERROR("binDataFile::getTwoByteCharString() Failure reading character.");
+				ERROR("binDataFile::getTwoByteCharString() Failure reading character.");
 				rv = -1;
 				break;
 			}
 		}
 	} else {
-		DEBUG_ERROR("binDataFile::getTwoByteCharString() Invalid destination pointer.");
+		ERROR("binDataFile::getTwoByteCharString() Invalid destination pointer.");
 	}
 	
 	return rv;
@@ -300,10 +300,10 @@ int binDataFile::getTwoByteCharString(string* pString, u_int64_t ulOffset, u_int
 		if (movePos(ulOffset) >= 0) {
 				rv = getTwoByteCharString(pString, ulLength, bBigEndian);
 		} else {
-			DEBUG_ERROR("binDataFile::getTwoByteCharString(offset) Error on moving to offset " << ulOffset);
+			ERROR("binDataFile::getTwoByteCharString(offset) Error on moving to offset " << ulOffset);
 		}
 	} else {
-		DEBUG_ERROR("binDataFile::getTwoByteCharString(offset) Invalid destination pointer.");
+		ERROR("binDataFile::getTwoByteCharString(offset) Invalid destination pointer.");
 	}
 	return rv;
 }
